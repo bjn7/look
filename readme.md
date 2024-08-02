@@ -1,5 +1,8 @@
 ## To DO
 
+IT IS BASE CODE
+after finishing base code -> optimize , apply rayon, remov unnessary stuff
+
 - parallel searching
 - better way of displaying
 - a navigation thing

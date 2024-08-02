@@ -1,23 +1,15 @@
-#[allow(unused_imports)]
-use std::io::{self, stdout, Result, Stdout};
-
-use crate::command::Command;
-
-#[allow(unused_imports)]
+use crate::{command::Command, utility::Utility};
 use ratatui::{
     crossterm::{
         event::{self, Event, KeyCode, KeyEventKind},
-        terminal::{
-            self, disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-        },
+        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
         ExecutableCommand,
     },
     prelude::CrosstermBackend,
-    style::{Color, Modifier, Style, Stylize},
-    text::Text,
+    style::{Color, Modifier, Style},
     widgets::{
         block::{Position, Title},
-        Block, BorderType, Borders, List, ListDirection, ListItem, ListState, Padding,
+        Block, BorderType, Borders, List, ListDirection, ListState,
     },
     Frame, Terminal,
 };
@@ -25,61 +17,59 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     widgets::Paragraph,
 };
+use std::io::{self, stdout, Stdout};
+use std::{path::PathBuf, vec};
 
-pub fn init() -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
-    stdout().execute(EnterAlternateScreen)?;
-    enable_raw_mode()?;
-    Terminal::new(CrosstermBackend::new(stdout()))
-}
-
-pub fn restore() -> io::Result<()> {
-    disable_raw_mode()?;
-    stdout().execute(LeaveAlternateScreen)?;
-    Ok(())
-}
-
-struct UserInput {
+pub struct UserInput {
     cursor: usize,
     content: String,
-}
-pub struct App {
-    state: ListState,
-    pub exit: bool,
-    input: UserInput,
+    pub stdout_result: Option<String>,
+    show_stdout_result: bool,
 }
 
-impl App {
-    pub fn new() -> Self {
+#[derive(Debug)]
+pub struct NavigationDataFeild {
+    pub path: PathBuf,
+    pub start: usize,
+    pub end: usize,
+}
+
+pub struct App<'a> {
+    pub state: ListState,
+    pub exit: bool,
+    pub input: UserInput,
+    result_block_bottom_text: String,
+    pub field: &'a Vec<NavigationDataFeild>,
+}
+
+impl<'a> App<'a> {
+    pub fn new(field: &'a Vec<NavigationDataFeild>) -> Self {
         Self {
             state: ListState::default(),
             exit: false,
             input: UserInput {
                 cursor: 0,
                 content: String::new(),
+                stdout_result: None,
+                show_stdout_result: false,
             },
+            result_block_bottom_text: String::new(),
+            field,
         }
     }
-    pub fn run(
-        &mut self,
-        terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-        items: Vec<ListItem>,
-    ) -> io::Result<()> {
+    pub fn run(&mut self, terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> io::Result<()> {
         self.state.select(Some(0));
         terminal.show_cursor()?;
         while !self.exit {
-            terminal.draw(|frame| self.render(frame, items.clone()))?;
+            terminal.draw(|frame| self.render(frame))?;
             self.handle_event()?;
         }
         Ok(())
     }
-    fn render(&mut self, frame: &mut Frame, items: Vec<ListItem>) {
+    fn render(&mut self, frame: &mut Frame) {
         let layout_area = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![
-                Constraint::Percentage(80),
-                Constraint::Percentage(15),
-                Constraint::Percentage(5),
-            ])
+            .constraints(vec![Constraint::Percentage(85), Constraint::Percentage(15)])
             .split(frame.size());
 
         let result_block = Block::new()
@@ -93,28 +83,49 @@ impl App {
                     .fg(Color::Blue)
                     .add_modifier(Modifier::BOLD),
             )
+            .title(
+                Title::from(self.result_block_bottom_text.to_owned())
+                    .position(Position::Bottom)
+                    .alignment(ratatui::layout::Alignment::Center),
+            )
+            .style(
+                Style::default()
+                    .fg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            )
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::LightBlue));
 
-        let list = List::new(items)
-            .block(result_block)
-            .style(Style::default().fg(Color::Red))
-            .highlight_style(
-                Style::default()
-                    .bg(Color::White)
-                    .fg(Color::LightRed)
-                    .add_modifier(Modifier::BOLD),
-            )
-            .highlight_symbol(" > ")
-            .repeat_highlight_symbol(false)
-            .direction(ListDirection::TopToBottom);
+        let list = List::new(
+            self.field
+                .to_owned()
+                .iter()
+                .map(|nav_field| App::get_formated_display_path(nav_field)),
+        )
+        .block(result_block)
+        .style(Style::default().fg(Color::White))
+        .highlight_style(
+            Style::default()
+                .bg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(" > ")
+        .repeat_highlight_symbol(false)
+        .direction(ListDirection::TopToBottom);
+
         let input_block = Block::new()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(Color::LightBlue));
 
-        let input_area = Paragraph::new(self.input.content.as_str())
+        let text = if self.input.show_stdout_result {
+            self.input.stdout_result.clone().unwrap_or(String::new())
+        } else {
+            self.input.content.to_string()
+        };
+
+        let input_area = Paragraph::new(text)
             .style(Style::default().fg(Color::Red))
             .block(input_block);
         frame.render_widget(input_area, layout_area[1]);
@@ -125,7 +136,6 @@ impl App {
             // Move one line down, from the border to the input line
             layout_area[1].y + 1,
         );
-
         frame.render_stateful_widget(list, layout_area[0], &mut self.state);
     }
     fn handle_event(&mut self) -> io::Result<()> {
@@ -148,10 +158,14 @@ impl App {
             KeyCode::Enter => {
                 self.handle_cmd();
                 self.input.content = String::new();
+                self.input.show_stdout_result = true;
                 self.reset_cursor();
             }
             KeyCode::Delete => self.delete_ch(),
-            KeyCode::Char(ch) => self.insert_ch(ch),
+            KeyCode::Char(ch) => {
+                self.input.show_stdout_result = false;
+                self.insert_ch(ch)
+            }
             _ => {}
         }
     }
@@ -159,6 +173,8 @@ impl App {
         self.input.content = String::from(&self.input.content);
         match self.input.content.as_str() {
             "quit" => self.quit(),
+            "code" => self.code(),
+            "cd" => self.cd(),
             _ => {}
         }
     }
@@ -173,7 +189,7 @@ trait Input {
     fn delete_ch(&mut self);
     fn backspace_ch(&mut self);
 }
-impl Input for App {
+impl<'a> Input for App<'a> {
     fn move_cursor_left(&mut self) {
         self.input.cursor = self.clamp_cursor(self.input.cursor.saturating_sub(1));
     }
@@ -203,4 +219,16 @@ impl Input for App {
             self.input.content.remove(self.input.cursor);
         }
     }
+}
+
+pub fn init() -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
+    stdout().execute(EnterAlternateScreen)?;
+    enable_raw_mode()?;
+    Terminal::new(CrosstermBackend::new(stdout()))
+}
+
+pub fn restore() -> io::Result<()> {
+    disable_raw_mode()?;
+    stdout().execute(LeaveAlternateScreen)?;
+    Ok(())
 }
