@@ -1,7 +1,6 @@
 use crate::{tui::App, utility::Utility};
 use std::{
     env,
-    fs::write,
     io::Error,
     path::PathBuf,
     process::{self, Output},
@@ -43,7 +42,6 @@ impl<'a> Command for App<'a> {
         match cmd_result {
             Ok(r) => {
                 let out = String::from_utf8(r.stderr).unwrap();
-                write("log_display_stdout.txt", out.clone()).unwrap();
                 if out.is_empty() {
                     self.quit();
                 } else {

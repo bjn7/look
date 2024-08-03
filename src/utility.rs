@@ -64,8 +64,8 @@ pub fn get_args() -> Flags {
     let mut flags = Flags {
         all: false,
         case_sensitive: false,
-        dir: false,
-        file: false,
+        dir: true,
+        file: true,
         sub_str: String::new(),
     };
 
@@ -73,8 +73,8 @@ pub fn get_args() -> Flags {
         match command_list.get(arg.as_str()) {
             Some((_, FlagsEnum::All)) => flags.all = true,
             Some((_, FlagsEnum::Case)) => flags.case_sensitive = true,
-            Some((_, FlagsEnum::Dir)) => flags.dir = true,
-            Some((_, FlagsEnum::File)) => flags.file = true,
+            Some((_, FlagsEnum::Dir)) => flags.file = false,
+            Some((_, FlagsEnum::File)) => flags.dir = false,
             None => {
                 if arg.starts_with('-') {
                     println!(
