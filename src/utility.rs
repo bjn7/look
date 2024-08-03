@@ -1,9 +1,12 @@
+use ratatui::crossterm::style::Stylize;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::ListItem;
 
 use crate::tui::App;
 use crate::NavigationDataFeild;
+use std::collections::HashMap;
+use std::env::args as arguments;
 // use std::fs;
 use std::path::PathBuf;
 
@@ -11,6 +14,87 @@ pub trait Utility {
     fn get_selected(&self) -> &NavigationDataFeild;
     fn get_path(&self) -> &PathBuf;
     fn get_formated_display_path(nav_field: &NavigationDataFeild) -> ListItem;
+}
+
+pub fn cmd_help(cmd_list: &HashMap<&str, (&str, FlagsEnum)>) {
+    println!(
+        "{} {} {}\n",
+        "USAGE:".bold().red(),
+        "look run".bold().blue(),
+        "[OPTIONS] [ARGS]".blue()
+    );
+    println!(" Arguments:\n");
+    for v in cmd_list.iter() {
+        println!("\t{}:\t{}", v.0.blue(), v.1 .0)
+    }
+    println!("\n");
+    std::process::exit(2);
+}
+
+pub enum FlagsEnum {
+    All,
+    Case,
+    Dir,
+    File,
+}
+
+pub struct Flags {
+    pub all: bool,
+    pub case_sensitive: bool,
+    pub dir: bool,
+    pub file: bool,
+    pub sub_str: String,
+}
+
+pub fn get_args() -> Flags {
+    let command_list: HashMap<&str, (&str, FlagsEnum)> = HashMap::from([
+        ("-all", ("Search in all directories.", FlagsEnum::All)),
+        (
+            "-case",
+            ("Perform a case-sensitive search.", FlagsEnum::Case),
+        ),
+        ("-dir", ("Search for directories only.", FlagsEnum::Dir)),
+        ("-file", ("Search for files only.", FlagsEnum::File)),
+    ]);
+
+    let args = arguments().collect::<Vec<String>>();
+    if args.len() <= 1 {
+        cmd_help(&command_list);
+    };
+    let mut flags = Flags {
+        all: false,
+        case_sensitive: false,
+        dir: false,
+        file: false,
+        sub_str: String::new(),
+    };
+
+    for arg in args.iter().skip(1) {
+        match command_list.get(arg.as_str()) {
+            Some((_, FlagsEnum::All)) => flags.all = true,
+            Some((_, FlagsEnum::Case)) => flags.case_sensitive = true,
+            Some((_, FlagsEnum::Dir)) => flags.dir = true,
+            Some((_, FlagsEnum::File)) => flags.file = true,
+            None => {
+                if arg.starts_with('-') {
+                    println!(
+                        "{}: unexpected argument: '{}'\n",
+                        "Error".bold().red(),
+                        arg.clone().bold().red()
+                    );
+                    cmd_help(&command_list);
+                }
+            }
+        }
+    }
+
+    flags.sub_str = args
+        .last()
+        .clone()
+        .expect("substring not provided")
+        .to_string();
+
+    return flags;
 }
 
 impl<'a> Utility for App<'a> {

@@ -108,6 +108,7 @@ impl<'a> App<'a> {
         .highlight_style(
             Style::default()
                 .bg(Color::White)
+                .fg(Color::Black)
                 .add_modifier(Modifier::BOLD),
         )
         .highlight_symbol(" > ")

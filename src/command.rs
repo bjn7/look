@@ -1,6 +1,7 @@
 use crate::{tui::App, utility::Utility};
 use std::{
     env,
+    fs::write,
     io::Error,
     path::PathBuf,
     process::{self, Output},
@@ -41,8 +42,14 @@ impl<'a> Command for App<'a> {
     fn display_stdout(&mut self, cmd_result: Result<Output, Error>) {
         match cmd_result {
             Ok(r) => {
-                self.input.stdout_result =
-                    Option::from(String::from_utf8(r.stderr).unwrap_or(String::from("default")));
+                let out = String::from_utf8(r.stderr).unwrap();
+                write("log_display_stdout.txt", out.clone()).unwrap();
+                if out.is_empty() {
+                    self.quit();
+                } else {
+                    self.input.stdout_result = Option::from(out);
+                    self.quit();
+                }
             }
             Err(_) => {
                 self.input.stdout_result = Option::from(String::from("Err! Failed to execute"));
