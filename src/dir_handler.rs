@@ -17,23 +17,22 @@ pub fn walk_dir(
     dir_result.iter().for_each(|entry| {
         let p = entry.path();
         if args.file && p.is_file() {
-            if let Some(nav_field) = get_nav_data_feild(&p, &args.sub_str) {
-                // Use thread-safe mechanisms if necessary
+            if let Some(nav_field) = get_nav_data_feild(&args.case_sensitive, &p, &args.sub_str) {
                 nav.push(nav_field);
             }
         }
-        if args.dir {
+        if args.dir || p.is_dir() {
             //after checking is_file(), the one remamming msut be folder ? nah there are other types too..
             // hence, is_dir() is solution
             if p.is_dir() {
-                if let Some(nav_field) = get_nav_data_feild(&p, &args.sub_str) {
-                    // Use thread-safe mechanisms if necessary
+                if let Some(nav_field) = get_nav_data_feild(&args.case_sensitive, &p, &args.sub_str)
+                {
                     nav.push(nav_field);
                 }
-            }
-            if args.all {
-                if let Err(e) = walk_dir(args, nav, p) {
-                    eprintln!("Error walking directory: {}", e);
+                if args.all {
+                    if let Err(e) = walk_dir(args, nav, p) {
+                        eprintln!("Error walking directory: {}", e);
+                    }
                 }
             }
         }
@@ -41,12 +40,22 @@ pub fn walk_dir(
     Ok(())
 }
 
-fn get_nav_data_feild(path: &PathBuf, sub_str: &String) -> Option<NavigationDataFeild> {
-    let name = &path
+fn get_nav_data_feild(
+    sensitivity: &bool,
+    path: &PathBuf,
+    sub_str: &String,
+) -> Option<NavigationDataFeild> {
+    let mut name = path
         .file_name()
         .expect("Failed to fetch file name")
-        .to_string_lossy();
-    if let Some(i) = name.find(sub_str) {
+        .to_string_lossy()
+        .to_string();
+    let mut clone_sub_str = sub_str.to_owned();
+    if !sensitivity {
+        name = name.to_lowercase();
+        clone_sub_str = clone_sub_str.to_lowercase();
+    }
+    if let Some(i) = name.find(&clone_sub_str) {
         let start = &path.to_string_lossy().len() - &name.len() + i;
         let end = start + sub_str.len();
         return Option::Some(NavigationDataFeild {
