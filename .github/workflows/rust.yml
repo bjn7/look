@@ -1,0 +1,31 @@
+name: Build Rust for Windows
+
+on:
+  push:
+    branches:
+      - main  # Trigger on pushes to the 'main' branch
+  pull_request:
+    branches:
+      - main  # Trigger on pull requests targeting the 'main' branch
+
+jobs:
+  build:
+    runs-on: windows-latest  # Use the latest Windows runner
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3  # Check out the repository code
+
+      - name: Set up Rust
+        uses: actions/setup-rust@v2
+        with:
+          rust-version: 'stable'  # Use the stable version of Rust
+
+      - name: Build for Windows
+        run: cargo build --release --verbose  # Build the project for Windows
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-build
+          path: target/release/look.exe
